@@ -14,6 +14,8 @@ Description: Tools to extract risk-neutral distress measures from single-name
     distress probability, and evaluation helpers (event windows, cluster
     bootstrap AUC comparisons and AUC bounds consistent with option prices).
 License: GPL-3
+URL: https://github.com/johannesvilsmeier-droid/ipodr
+BugReports: https://github.com/johannesvilsmeier-droid/ipodr/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Depends: 
@@ -22,7 +24,10 @@ Imports:
     stats,
     utils
 Suggests:
+    knitr,
     lpSolve,
+    rmarkdown,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1

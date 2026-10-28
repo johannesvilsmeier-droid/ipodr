@@ -37,5 +37,5 @@ atm_iv(ch)
 
 ```r
 # install.packages("remotes")
-remotes::install_github("<user>/ipodr")
+remotes::install_github("johannesvilsmeier-droid/ipodr", build_vignettes = TRUE)
 ```

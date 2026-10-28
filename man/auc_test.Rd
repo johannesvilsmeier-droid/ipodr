@@ -22,8 +22,8 @@ auc_test(data, scores, ref = NULL, bank = "bank", B = 500, level = 0.9)
 \value{
 A data frame with one row per score: \code{score}, \code{n_pos}, \code{n_neg},
 \code{auc}, \code{auc_lower}, \code{auc_upper}, \code{pr_auc}, \code{base_rate}, \code{bank_auc} and,
-with \code{ref}, \code{diff}, \code{diff_lower}, \code{diff_upper} (bootstrap median and
-percentile interval).
+with \code{ref}, \code{diff}, \code{diff_lower}, \code{diff_upper} (point estimate on the
+common observations and bootstrap percentile interval).
 }
 \description{
 For each score column, reports the pooled AUC, average precision and a

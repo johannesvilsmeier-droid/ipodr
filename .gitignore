@@ -3,3 +3,7 @@
 .RData
 *.tar.gz
 ipodr.Rcheck/
+doc/
+Meta/
+inst/doc/
+vignettes/*.html

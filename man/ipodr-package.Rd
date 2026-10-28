@@ -30,6 +30,14 @@ benchmarks; \code{\link[=label_events]{label_events()}}, \code{\link[=auc_test]{
 All probabilities are risk-neutral. They are not physical default
 probabilities unless calibrated.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/johannesvilsmeier-droid/ipodr}
+  \item Report bugs at \url{https://github.com/johannesvilsmeier-droid/ipodr/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Johannes Vilsmeier \email{johannes.vilsmeier@icloud.com}
 

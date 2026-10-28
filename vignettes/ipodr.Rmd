@@ -1,0 +1,196 @@
+---
+title: "Option-implied distress measures and what the quotes identify"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Option-implied distress measures and what the quotes identify}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4)
+```
+
+```{r}
+library(ipodr)
+```
+
+This vignette walks through a typical workflow on simulated quotes, where the
+true risk-neutral distribution is known. All quantities refer to
+\(Y = S_T/F\), the share price at expiry relative to the forward.
+
+## 1. Quotes and chain preparation
+
+The input is a long data frame with one row per quote for one underlying,
+one observation date and one expiry: `strike`, `type` (call or put), `bid`,
+`ask`, `rate` and either `ttm` (days) or `date` and `expiry`; optionally `oi`
+(open interest) and `spot`. `sim_quotes()` produces such a data frame from a
+distribution with an atom of mass `pod` at zero and a lognormal remainder.
+
+```{r}
+q <- sim_quotes(ttm = 182, sigma = 0.45, pod = 0.01)
+head(q)
+truth <- attr(q, "tail")
+truth(c(0, 0.5, 0.8))
+```
+
+With quotes for several expiries, `select_expiry()` keeps the one closest to
+182 days. `ipod_chain()` computes the put-call parity forward, keeps
+out-of-the-money calls and puts (puts are converted to calls by parity) and
+normalises strikes and prices by the forward.
+
+```{r}
+ch <- ipod_chain(q)
+c(F = ch$F, T = ch$T, kmin = ch$kmin, kmax = ch$kmax, n = nrow(ch$quotes), ok = ch$ok)
+```
+
+`kmin` is the lowest quoted strike relative to the forward. Below it, the
+quotes carry almost no information about the shape of the distribution.
+
+## 2. A regularised point estimate
+
+`ipod_fit()` fits a penalised maximum-entropy distribution: uniform on
+\([0, d]\) (the barrier region) and exponentially tilted above, with price
+tolerances from the bid-ask spread.
+
+```{r}
+fit <- ipod_fit(ch, d = 0.1, n_grid = 1000)
+rbind(estimate = tail_prob(fit, c(0.5, 0.8)), truth = truth(c(0.5, 0.8)))
+rnd_summary(fit)[c("pod", "p_eq80", "p_eq50", "q05", "kmin")]
+```
+
+The tail probability at 80% of the forward lies inside the quoted strike
+range and is recovered closely. The PoD, the mass below the barrier, is not.
+
+## 3. The PoD depends on an unidentified barrier
+
+`ipod_profile()` refits over a grid of barriers. Every fit prices the quotes
+within tolerance (`fit_in` is the share of quotes fitted within their
+tolerance) and the tail probability at 80% barely moves, yet the PoD is
+whatever the barrier makes it.
+
+```{r}
+pr <- ipod_profile(ch, d_grid = exp(seq(log(0.005), log(0.6), length.out = 12)), n_grid = 1000)
+pr[, c("d", "pod", "fit_in", "p_eq80")]
+range(pr$pod) / truth(0)
+```
+
+```{r, fig.alt = "PoD against the barrier on log scales"}
+plot(pr$d, pr$pod, log = "xy", type = "b", xlab = "barrier d", ylab = "PoD",
+     main = "Same quotes, different barriers")
+abline(h = truth(0), lty = 2)
+```
+
+Barrier-selection rules pick one point of this profile by assumption:
+
+```{r}
+rbind(pod_select(pr, "mean"), pod_select(pr, "median"),
+      pod_select(pr, "absolute"), pod_select(pr, "fixed", d = 0.1))
+```
+
+The `"absolute"` rule (barriers of 1 to 20 currency units) depends on the
+nominal share price; a stock split changes it. In this example the true
+distribution has an atom at zero, and every rule lands below it; for a
+distribution without an atom, every rule would report a positive PoD. The
+quotes cannot tell the two cases apart.
+
+## 4. What the quotes identify
+
+`tail_bounds()` gives the sharp lower and upper bounds of \(Q(Y \le a)\) over
+all distributions consistent with the bid and ask quotes (Dillschneider 2026).
+At `a = 0` the lower bound is zero whenever `kmin > 0`: the probability of
+zero equity is never identified by option quotes alone.
+
+```{r}
+tb <- tail_bounds(ch, c(0, 0.3, 0.5, 0.8, 1))
+tb$truth <- truth(tb$a)
+tb
+atm_iv_bounds(ch)
+```
+
+Report these bounds alongside any PoD or tail probability. The same bounds
+for general payoffs are available by linear programming:
+
+```{r, eval = requireNamespace("lpSolve", quietly = TRUE)}
+lp_bounds(ch, function(y) as.numeric(y <= 0.8))
+```
+
+## 5. Benchmarks
+
+The at-the-money implied volatility, the lognormal tail at that volatility,
+the drawdown and a distance to threshold are the natural benchmarks. The
+anchored distress probability `adp()` is \(Q(S_T < \theta M)\) with \(M\) the
+running peak of the share price; with `fit` it uses the fitted distribution,
+with `sigma` the lognormal.
+
+```{r}
+iv <- atm_iv(ch)
+iv
+lognormal_tail(c(0.5, 0.8), sigma = iv, T = ch$T)
+peak <- 1.6 * ch$F          # the share price has fallen 37.5% from its peak
+c(rnd = adp(peak = peak, forward = ch$F, fit = fit),
+  lognormal = adp(peak = peak, forward = ch$F, sigma = iv, T = ch$T))
+```
+
+## 6. Evaluating indicators across banks
+
+The evaluation tools work on a panel with one row per bank and date. The
+example below simulates eight banks observed weekly; three have an event at
+the end of the sample and a volatility that drifts up towards it, with noise.
+
+```{r}
+set.seed(1)
+dates <- as.Date("2023-01-04") + 7 * (0:19)
+banks <- data.frame(bank = LETTERS[1:8],
+                    event = as.Date(c(rep("2023-05-31", 3), rep(NA, 5))))
+panel <- do.call(rbind, lapply(seq_len(nrow(banks)), function(i) {
+  ev <- !is.na(banks$event[i])
+  do.call(rbind, lapply(seq_along(dates), function(j) {
+    sig <- if (ev) 0.30 + 0.02 * j + rnorm(1, 0, 0.08) else runif(1, 0.25, 0.6)
+    chj <- ipod_chain(sim_quotes(sigma = max(sig, 0.1)))
+    b0 <- tail_bounds(chj, 0.8)
+    data.frame(bank = banks$bank[i], date = dates[j], event = banks$event[i],
+               iv = atm_iv(chj), lo80 = b0$lower, hi80 = b0$upper)
+  }))
+}))
+lab <- label_events(panel, horizon = 60)
+table(lab$pos)
+```
+
+`auc_test()` reports pooled and bank-level AUCs and resamples event and
+control banks as clusters. Here the upper bound of the 80% tail probability
+ranks banks exactly as the implied volatility does, because both are
+monotone in the same volatility:
+
+```{r}
+auc_test(lab, c("iv", "hi80"), ref = "iv", B = 200)
+```
+
+`auc_bounds()` gives the range of AUCs consistent with the quotes when each
+score is only known to lie between its bounds:
+
+```{r}
+auc_bounds(lab$lo80, lab$hi80, lab$pos)
+```
+
+The range is wide: a point estimate of the tail probability may rank banks
+well, but the quotes alone do not pin that ranking down.
+
+`first_alarm()` returns the first date on which a score exceeds a threshold
+for a run of consecutive observations.
+
+```{r}
+a <- lab[lab$bank == "A", ]
+first_alarm(a$date, a$iv, threshold = 0.45, run = 2)
+```
+
+## References
+
+Capuano, C. (2008). The option-iPoD: the probability of default implied by
+option prices based on entropy. IMF Working Paper 08/194.
+
+Dillschneider, Y. (2026). Option prices and option-implied probabilities in
+incomplete markets. SSRN working paper 6976498.
+
+Vilsmeier, J. (2016). Updating the option implied probability of default
+methodology. Journal of Computational Finance 19(3), 1--27.

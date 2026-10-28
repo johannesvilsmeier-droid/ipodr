@@ -77,8 +77,8 @@ label_events <- function(data, horizon, bank = "bank", date = "date", event = "e
 #' @param level Confidence level of the percentile intervals.
 #' @return A data frame with one row per score: `score`, `n_pos`, `n_neg`,
 #'   `auc`, `auc_lower`, `auc_upper`, `pr_auc`, `base_rate`, `bank_auc` and,
-#'   with `ref`, `diff`, `diff_lower`, `diff_upper` (bootstrap median and
-#'   percentile interval).
+#'   with `ref`, `diff`, `diff_lower`, `diff_upper` (point estimate on the
+#'   common observations and bootstrap percentile interval).
 #' @examples
 #' set.seed(1)
 #' d <- data.frame(bank = rep(letters[1:8], each = 20), pos = rep(c(TRUE, FALSE), c(40, 120)))
