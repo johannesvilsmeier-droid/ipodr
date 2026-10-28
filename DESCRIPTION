@@ -1,0 +1,28 @@
+Package: ipodr
+Title: Option-Implied Distress Measures and Their Identified Sets
+Version: 0.1.0
+Authors@R: 
+    person("Johannes", "Vilsmeier", , "johannes.vilsmeier@icloud.com", role = c("aut", "cre"))
+Description: Tools to extract risk-neutral distress measures from single-name
+    equity option quotes and to report what the quotes do and do not identify.
+    Implements a penalised maximum-entropy version of the option-implied
+    probability of default of Capuano (2008) <doi:10.2139/ssrn.1339927> and
+    Vilsmeier (2016) <doi:10.21314/jcf.2015.206>, with barrier-free tail
+    probabilities, barrier-selection rules, model-free bounds on option prices
+    and tail probabilities following Dillschneider (2026)
+    <doi:10.2139/ssrn.6976498>, implied-volatility benchmarks, an anchored
+    distress probability, and evaluation helpers (event windows, cluster
+    bootstrap AUC comparisons and AUC bounds consistent with option prices).
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends: 
+    R (>= 4.1.0)
+Imports:
+    stats,
+    utils
+Suggests:
+    lpSolve,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.1
