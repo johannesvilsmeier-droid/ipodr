@@ -10,6 +10,10 @@ The package implements:
   barrier-selection rules;
 * barrier-free tail probabilities \(Q(S_T/F < a)\) and the anchored distress
   probability \(Q(S_T < \theta \cdot \text{peak})\);
+* an equity-only version of the anchored distress probability (`padp()`),
+  which combines drawdown and realised volatility in one probability and
+  needs only share prices, so it covers banks without listed options; with
+  `peer_percentile()` and `first_alarm()` it gives a peer-ranked alarm rule;
 * sharp model-free bounds on tail probabilities, call prices and at-the-money
   implied volatility from bid and ask quotes (Dillschneider 2026), and a
   linear-programming version for general payoffs;
@@ -31,6 +35,11 @@ fit <- ipod_fit(ch, d = 0.1)
 tail_prob(fit, c(0.5, 0.8))
 tail_bounds(ch, c(0, 0.5, 0.8))
 atm_iv(ch)
+
+# equity-only anchored distress probability from a daily price series
+set.seed(1)
+p <- 100 * exp(cumsum(c(rnorm(300, sd = 0.015), rnorm(60, -0.01, 0.04))))
+tail(padp(p, theta = 0.5, T = 0.5))
 ```
 
 ## Installation

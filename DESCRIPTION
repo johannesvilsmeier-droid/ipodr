@@ -11,7 +11,8 @@ Description: Tools to extract risk-neutral distress measures from single-name
     probabilities, barrier-selection rules, model-free bounds on option prices
     and tail probabilities following Dillschneider (2026)
     <doi:10.2139/ssrn.6976498>, implied-volatility benchmarks, an anchored
-    distress probability, and evaluation helpers (event windows, cluster
+    distress probability with an equity-only version for companies without
+    listed options, and evaluation helpers (event windows, cluster
     bootstrap AUC comparisons and AUC bounds consistent with option prices).
 License: GPL-3
 URL: https://github.com/johannesvilsmeier-droid/ipodr

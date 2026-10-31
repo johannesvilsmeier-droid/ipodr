@@ -187,3 +187,100 @@ adp <- function(peak, forward, theta = 0.5, fit = NULL, sigma = NULL, T = NULL) 
   if (is.null(sigma) || is.null(T)) stop("Provide `fit`, or `sigma` and `T`.", call. = FALSE)
   lognormal_tail(a, sigma, T)
 }
+
+#' Realised volatility
+#'
+#' Annualised standard deviation of daily log returns over a trailing window.
+#' Returns are taken between consecutive available prices; missing prices are
+#' skipped. A value is reported only once `window` observations have been
+#' seen, if the window contains at least `min_obs` returns, at least a share
+#' `min_nonzero` of them non-zero (stale price filter), and the current price
+#' is available.
+#'
+#' @param price Daily price series, ordered in time (split-adjusted).
+#' @param window Window length in observations.
+#' @param min_obs Minimum number of finite returns in the window.
+#' @param min_nonzero Minimum share of non-zero returns in the window.
+#' @param annualise Number of observations per year.
+#' @return Numeric vector of the same length as `price`.
+#' @examples
+#' set.seed(1)
+#' p <- 100 * exp(cumsum(rnorm(300, sd = 0.02)))
+#' tail(realised_vol(p))
+#' @export
+realised_vol <- function(price, window = 252, min_obs = 200, min_nonzero = 0.5, annualise = 252) {
+  ok <- is.finite(price) & price > 0
+  lp <- ifelse(ok, log(price), NA_real_)
+  last <- lp
+  for (i in seq_along(last)[-1]) if (is.na(last[i])) last[i] <- last[i - 1]
+  r <- lp - c(NA_real_, last[-length(last)])
+  vapply(seq_along(price), function(i) {
+    if (!ok[i] || i < window) return(NA_real_)
+    x <- r[(i - window + 1):i]; x <- x[is.finite(x)]
+    if (length(x) < max(2, min_obs) || mean(x != 0) < min_nonzero) return(NA_real_)
+    v <- stats::var(x)
+    if (v > 0) sqrt(annualise * v) else NA_real_
+  }, numeric(1))
+}
+
+#' Equity-only anchored distress probability
+#'
+#' The probability that the share price ends below a fixed fraction `theta`
+#' of its trailing peak within `T` years, under a lognormal distribution with
+#' the bank's own realised volatility:
+#' \deqn{\Phi(-DtD), \quad DtD = \frac{\log((1-dd)/\theta) - \sigma^2 T/2}{\sigma\sqrt{T}},}
+#' with \eqn{dd} the trailing drawdown (see [drawdown()], [dtd()]). It
+#' combines two equity features, the decline from the peak and the
+#' volatility, in one probability and needs no option data, so it can be
+#' computed for every listed company. It equals the lognormal [adp()] with
+#' the forward set to the current price.
+#'
+#' The probability is a scale for ranking and monitoring, not a calibrated
+#' physical default probability. In practice it is used as a same-date
+#' percentile within a peer universe ([peer_percentile()]).
+#'
+#' @inheritParams realised_vol
+#' @param theta Threshold as a fraction of the trailing peak.
+#' @param T Horizon in years.
+#' @param sigma Optional volatility series of the same length as `price` (for
+#'   example at-the-money implied volatility); the default is
+#'   `realised_vol(price, window, min_obs, min_nonzero)`.
+#' @return Numeric vector of the same length as `price`.
+#' @examples
+#' set.seed(1)
+#' p <- 100 * exp(cumsum(c(rnorm(300, sd = 0.015), rnorm(60, -0.01, 0.04))))
+#' tail(padp(p))
+#' @export
+padp <- function(price, theta = 0.5, T = 0.5, window = 252, min_obs = 200, min_nonzero = 0.5, sigma = NULL) {
+  if (is.null(sigma)) sigma <- realised_vol(price, window, min_obs, min_nonzero)
+  if (length(sigma) != length(price)) stop("`sigma` must have the same length as `price`.", call. = FALSE)
+  dd <- drawdown(price, window)
+  ok <- is.finite(dd) & is.finite(sigma) & sigma > 0
+  out <- rep(NA_real_, length(price))
+  out[ok] <- stats::pnorm(-dtd(dd[ok], sigma[ok], T, theta))
+  out
+}
+
+#' Same-date peer percentile
+#'
+#' Mid-rank percentile \eqn{(\text{rank} - 0.5)/n} of each score among the
+#' finite scores of the same group (for example the same date), with ties
+#' averaged. Groups with fewer than `min_n` finite scores return `NA`. Combined
+#' with [first_alarm()], a percentile threshold such as 0.9 gives an alarm
+#' rule with a fixed attention budget.
+#'
+#' @param score Scores.
+#' @param group Grouping vector of the same length (for example dates).
+#' @param min_n Minimum number of finite scores per group.
+#' @return Numeric vector of percentiles in \eqn{(0, 1)}.
+#' @examples
+#' peer_percentile(c(1, 2, 3, 10, 20), c(1, 1, 1, 2, 2), min_n = 2)
+#' @export
+peer_percentile <- function(score, group, min_n = 50) {
+  out <- rep(NA_real_, length(score))
+  for (g in split(seq_along(score), group)) {
+    ok <- is.finite(score[g]); n <- sum(ok)
+    if (n >= min_n) out[g[ok]] <- (rank(score[g][ok]) - 0.5) / n
+  }
+  out
+}

@@ -132,6 +132,22 @@ c(rnd = adp(peak = peak, forward = ch$F, fit = fit),
   lognormal = adp(peak = peak, forward = ch$F, sigma = iv, T = ch$T))
 ```
 
+Without options, `padp()` computes the same probability from the share price
+alone: the forward is the current price, the volatility is the realised
+volatility over the past year (`realised_vol()`), and the peak is the
+trailing 252-day maximum. It combines drawdown and volatility in one
+probability with no fitted weights and can be computed for every listed
+company. Its level is a scale for ranking, not a calibrated default
+probability; `peer_percentile()` turns it into a same-date rank within a peer
+universe.
+
+```{r}
+set.seed(1)
+p <- 100 * exp(cumsum(c(rnorm(300, sd = 0.015), rnorm(60, -0.01, 0.04))))
+x <- padp(p, theta = 0.5, T = 0.5)
+round(x[c(260, 300, 330, 360)], 4)
+```
+
 ## 6. Evaluating indicators across banks
 
 The evaluation tools work on a panel with one row per bank and date. The
